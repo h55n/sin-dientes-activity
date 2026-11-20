@@ -1,0 +1,43 @@
+name: Word list import regression
+on:
+  push:
+    branches: [verify/empty-import-14-v3]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install real Sugar and GTK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-sugar3 python3-gi python3-cairo gir1.2-gtk-3.0 python3-flake8 xvfb
+      - name: Compile, lint tests and check whitespace
+        run: |
+          /usr/bin/python3 -m py_compile activity.py utils.py tests/test_import.py
+          /usr/bin/python3 -m flake8 tests
+          git diff --check 5dc7f292b94f3adce7e8d0f36e3fed7ae81bae95
+      - name: Check for new source lint findings against upstream baseline
+        run: |
+          mkdir /tmp/import-baseline
+          git show 5dc7f292b94f3adce7e8d0f36e3fed7ae81bae95:activity.py > /tmp/import-baseline/activity.py
+          git show 5dc7f292b94f3adce7e8d0f36e3fed7ae81bae95:utils.py > /tmp/import-baseline/utils.py
+          python3 - <<'PY'
+          import subprocess
+          def findings(paths):
+              run = subprocess.run(['/usr/bin/python3', '-m', 'flake8', *paths], capture_output=True, text=True)
+              assert run.returncode in (0, 1), run.stderr
+              return sorted(':'.join(line.split(':')[3:]).strip() for line in run.stdout.splitlines())
+          baseline = findings(['/tmp/import-baseline/activity.py', '/tmp/import-baseline/utils.py'])
+          current = findings(['activity.py', 'utils.py'])
+          print('Existing source lint findings:', baseline)
+          assert current == baseline, (baseline, current)
+          PY
+      - name: Run word-list import regressions
+        run: xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
+      - name: Build activity bundle
+        run: /usr/bin/python3 setup.py dist_xo
