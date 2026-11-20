@@ -612,9 +612,11 @@ class Sindiente(activity.Activity):
 
     def _importar_archivo_cb(self, widget, data=None):
         '''importa una nueva lista de palabras'''
+        self.uri = self.archivo.get_uri()
+        if self.uri is None:
+            return
         self.modelocombo = self.combo.get_model()
         self.nivel = self.combo.get_active()
-        self.uri = self.archivo.get_uri()
         self.uri = self.uri[7:]
         utils.importar_lista_p(self.sugar_data, self.uri, self.nivel)
 
